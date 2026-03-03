@@ -6,7 +6,6 @@ class StudentPreferences(BaseModel):
     hobbies: List[str]
     horario_preferido: str
 
-# Esquema para mostrar carreras en el Select del Frontend
 class CareerResponse(BaseModel):
     career_id: int
     career_name: str
@@ -19,16 +18,14 @@ class UserRegisterRequest(BaseModel):
     email: EmailStr 
     password: str = Field(..., min_length=12)
     matricula: str = Field(..., min_length=8)
-    
-    # El ID que el usuario elegirá en el front
     career_id: int = Field(..., gt=0) 
     preferences: StudentPreferences
 
-    # @field_validator('email')
-    # def validate_utcancun_email(cls, v):
-    #     if not v.endswith('@utcancun.edu.mx'):
-    #         raise ValueError('El correo debe ser @utcancun.edu.mx')
-    #     return v
+    @field_validator('email')
+    def validate_utcancun_email(cls, v):
+        if not v.endswith('@utcancun.edu.mx'):
+            raise ValueError('El correo debe ser @utcancun.edu.mx')
+        return v
 
     @field_validator('password')
     def validate_password_strength(cls, v):
@@ -37,16 +34,43 @@ class UserRegisterRequest(BaseModel):
             raise ValueError('La contraseña debe incluir mayúscula, número y símbolo.')
         return v
 
-
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "first_name": "Diego Angel",
+                "last_name": "Ramirez Fernandez",
+                "email": "23393190@utcancun.edu.mx",
+                "password": "PasswordSegura2026!*",
+                "matricula": "23393190",
+                "career_id": 7,
+                "preferences": {
+                    "hobbies": ["Programar", "Leer"],
+                    "horario_preferido": "Matutino"
+                }
+            }
+        }
 
 class UserLoginRequest(BaseModel):
     email: EmailStr
     password: str
     mfa_code: Optional[str] = None
-    
-# Asegúrate de tener esto hasta abajo en schemas.py
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "23393190@utcancun.edu.mx",
+                "password": "PasswordSegura2026!*",
+                "mfa_code": "123456"
+            }
+        }
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+    
+    class Config:
+        json_schema_extra = {
+            "example": {"email": "23393190@utcancun.edu.mx"}
+        }
 
 class ResetPasswordRequest(BaseModel):
     token: str
@@ -58,3 +82,11 @@ class ResetPasswordRequest(BaseModel):
         if not re.match(pattern, v):
             raise ValueError('Contraseña débil: requiere mayúscula, número y símbolo.')
         return v
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "token": "qbaEoluUillUCt-cd6nxvfBoWyofVGxHqSbVPzB9vug",
+                "new_password": "NuevaPassword2026!*"
+            }
+        }

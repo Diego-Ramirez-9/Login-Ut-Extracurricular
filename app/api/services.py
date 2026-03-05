@@ -1,6 +1,7 @@
 from typing import cast, Optional
 import secrets
 from fastapi import BackgroundTasks
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.database.models import User, StudentProfile, Role, Career
@@ -83,7 +84,11 @@ def authenticate_user(db: Session, login_data: UserLoginRequest):
     if cast(bool, user.is_mfa_enabled):
         # Si tiene MFA pero no mandó el código en la petición
         if not login_data.mfa_code:
-            raise HTTPException(status_code=401, detail="Se requiere código MFA (Autenticador).")
+            # Le mandamos un estado 202 al Frontend con una bandera "mfa_required"
+            return JSONResponse(
+                status_code=202,
+                content={"mfa_required": True, "message": "Credenciales correctas. Ingrese su código MFA."}
+            )
         
         # Si mandó el código, verificamos que sea válido
         if not verify_mfa_code(cast(str, user.mfa_secret), login_data.mfa_code):

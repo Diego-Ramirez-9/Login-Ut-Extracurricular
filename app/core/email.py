@@ -1,42 +1,40 @@
-import smtplib
-from email.message import EmailMessage
-from app.core.config import settings
+import json
+import urllib.request
+from app.core.config import settings 
 
 def send_reset_password_email(to_email: str, token: str):
-    """Envía el correo real usando el servidor SMTP de Brevo."""
-    
-    # Esta es la URL de prueba de React (cambiará cuando lo suban a la web)
+    # Enlace al frontend (Ajusta el puerto si tu compañero usa otro)
     reset_link = f"http://localhost:3000/reset-password?token={token}"
     
-    msg = EmailMessage()
-    msg['Subject'] = "Recuperación de Contraseña - UT Cancún RAG"
+    # 1. Armamos el paquete de datos en formato JSON
+    data = {
+        "sender": {
+            "name": "Sistema RAG UT Cancún", 
+            "email": "support@utextracurricular.com" # Tu correo verificado en Brevo
+        },
+        "to": [{"email": to_email}],
+        "subject": "Recuperación de Contraseña",
+        "htmlContent": f"""
+        <h3>Hola,</h3>
+        <p>Hemos recibido una solicitud para restablecer tu contraseña.</p>
+        <p>Haz clic en el siguiente enlace para crear una nueva contraseña:</p>
+        <p><a href="{reset_link}">{reset_link}</a></p>
+        <p>Este enlace expirará en 15 minutos.</p>
+        """
+    }
     
-    # Brevo requiere que el remitente coincida o esté verificado. 
-    # Usaremos tu identificador como remitente por ahora.
-    # Usa exactamente el correo que verificaste en el Paso 1 en Brevo
-    msg['From'] = "support@utextracurricular.com"
-    msg['To'] = to_email
+    # 2. Preparamos la petición HTTP hacia la API de Brevo
+    url = "https://api.brevo.com/v3/smtp/email"
+    req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"))
     
-    cuerpo_correo = f"""
-    Hola,
+    # 3. Agregamos las cabeceras (Inyectamos la llave maestra)
+    req.add_header("accept", "application/json")
+    req.add_header("api-key", settings.SMTP_PASSWORD) 
+    req.add_header("content-type", "application/json")
     
-    Hemos recibido una solicitud para restablecer tu contraseña en el sistema RAG de la UT Cancún.
-    
-    Por favor, haz clic en el siguiente enlace para crear una nueva contraseña:
-    {reset_link}
-    
-    Este enlace expirará en 15 minutos por tu seguridad.
-    
-    Si no solicitaste este cambio, puedes ignorar este correo de forma segura.
-    """
-    msg.set_content(cuerpo_correo)
-
+    # 4. Disparamos la petición HTTP
     try:
-        server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
-        server.starttls()
-        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        print(f"✅ Correo enviado exitosamente a {to_email}")
+        with urllib.request.urlopen(req) as response:
+            print("✅ ¡Éxito! Correo enviado vía API:", response.read().decode())
     except Exception as e:
-        print(f"❌ Error al enviar el correo: {e}")
+        print("❌ Error al enviar vía API HTTP:", str(e))

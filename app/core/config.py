@@ -11,11 +11,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY") or ""
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 120))
-    
-    SMTP_SERVER: str = os.getenv("SMTP_SERVER") or ""
-    SMTP_PORT: int = int(os.getenv("SMTP_PORT", 587))
-    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME") or ""
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD") or ""
+    BREVO_API_KEY: str = os.getenv("BREVO_API_KEY") or ""
 
     class Config:
         env_file = ".env"

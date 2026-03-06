@@ -3,14 +3,13 @@ import urllib.request
 from app.core.config import settings 
 
 def send_reset_password_email(to_email: str, token: str):
-    # Enlace al frontend (Ajusta el puerto si tu compañero usa otro)
-    reset_link = f"http://localhost:3000/reset-password?token={token}"
+    reset_link = f"https://front-ut-extracurricular-production.up.railway.app/auth/reset-password?token={token}"
     
-    # 1. Armamos el paquete de datos en formato JSON
     data = {
         "sender": {
-            "name": "Sistema RAG UT Cancún", 
-            "email": "support@utextracurricular.com" # Tu correo verificado en Brevo
+            "name": "Soporte UT Cancún", 
+            # Usamos tu correo institucional verificado que me mostraste
+            "email": "support@utextracurricular.com" 
         },
         "to": [{"email": to_email}],
         "subject": "Recuperación de Contraseña",
@@ -23,18 +22,17 @@ def send_reset_password_email(to_email: str, token: str):
         """
     }
     
-    # 2. Preparamos la petición HTTP hacia la API de Brevo
     url = "https://api.brevo.com/v3/smtp/email"
     req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"))
     
-    # 3. Agregamos las cabeceras (Inyectamos la llave maestra)
     req.add_header("accept", "application/json")
-    req.add_header("api-key", settings.SMTP_PASSWORD) 
+    # Usamos la variable con el nombre correcto
+    req.add_header("api-key", settings.BREVO_API_KEY) 
     req.add_header("content-type", "application/json")
     
-    # 4. Disparamos la petición HTTP
     try:
         with urllib.request.urlopen(req) as response:
-            print("✅ ¡Éxito! Correo enviado vía API:", response.read().decode())
+            # Mensaje súper limpio en la consola, sin el JSON raro
+            print(f"✅ ¡Éxito! Correo de recuperación enviado a {to_email}")
     except Exception as e:
-        print("❌ Error al enviar vía API HTTP:", str(e))
+        print("❌ Error al enviar correo de recuperación:", e)

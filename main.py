@@ -15,12 +15,17 @@ app = FastAPI(
     version="1.0.0"
 )
 
+origins = [
+    "https://front-ut-extracurricular-production.up.railway.app", # El frontend de tu compañero en Railway
+]
+
+# 3. Añadir las reglas a la aplicación
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,       # Solo deja pasar a los de la lista VIP
+    allow_credentials=True,      # Permite el uso de cookies y tokens
+    allow_methods=["*"],         # Permite todos los métodos (GET, POST, PUT, DELETE, options)
+    allow_headers=["*"],         # Permite todos los encabezados
 )
 
 # 2. ¡NUEVO! Conectamos el router a la aplicación principal

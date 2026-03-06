@@ -16,7 +16,9 @@ app = FastAPI(
 )
 
 origins = [
-    "https://front-ut-extracurricular-production.up.railway.app", # El frontend de tu compañero en Railway
+    "https://front-ut-extracurricular-production.up.railway.app",
+    "http://localhost:3000", # Por si tu compañero prueba en su compu local con React
+    "http://localhost:5173",# El frontend de tu compañero en Railway
 ]
 
 # 3. Añadir las reglas a la aplicación

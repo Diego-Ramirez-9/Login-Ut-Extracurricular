@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from app.database.models import User, StudentProfile, Role, Career
 from app.api.schemas import UserLoginRequest, UserRegisterRequest, ForgotPasswordRequest, ResetPasswordRequest
-from app.core.security import get_password_hash, verify_password, create_access_token, generate_mfa_secret, get_mfa_uri, verify_mfa_code
+from app.core.security import create_refresh_token, get_password_hash, verify_password, create_access_token, generate_mfa_secret, get_mfa_uri, verify_mfa_code
 from app.core.email import send_reset_password_email
 from datetime import datetime, timedelta, timezone
 
@@ -102,9 +102,11 @@ def authenticate_user(db: Session, login_data: UserLoginRequest):
 
     token_data = {"sub": str(user.user_id), "role": user.role.role_name}
     access_token = create_access_token(data=token_data)
+    refresh_token = create_refresh_token(data=token_data)
     
     return {
-        "access_token": access_token, 
+        "access_token": access_token,
+        "refresh_token": refresh_token, 
         "token_type": "bearer",
         "user_name": f"{user.first_name} {user.last_name}"
     }

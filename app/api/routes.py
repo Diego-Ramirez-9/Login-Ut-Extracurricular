@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status, BackgroundTasks
+# app/api/routes.py
+from fastapi import APIRouter, Depends, status, BackgroundTasks, Response, Cookie, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -8,18 +10,18 @@ from app.api.schemas import (
     UserLoginRequest, UserRegisterRequest, CareerResponse, 
     ForgotPasswordRequest, ResetPasswordRequest
 )
+from app.core.security import verify_refresh_token, create_access_token
 from app.api import services
 
-# Importamos la documentación que creamos en docs.py
+# Importamos TODA la documentación homologada
 from app.api.docs import (
     CAREERS_SUMMARY, CAREERS_DESC,
-    REGISTER_SUMMARY, REGISTER_DESC,
-    LOGIN_SUMMARY, LOGIN_DESC,
-    FORGOT_PWD_SUMMARY, FORGOT_PWD_DESC,
-    RESET_PWD_SUMMARY, RESET_PWD_DESC,
-    MFA_SETUP_SUMMARY, MFA_SETUP_DESC,
-    MFA_VERIFY_SUMMARY, MFA_VERIFY_DESC,
-    COMMON_RESPONSES, LOGIN_RESPONSES
+    REGISTER_SUMMARY, REGISTER_DESC, REGISTER_RESPONSES,
+    LOGIN_SUMMARY, LOGIN_DESC, LOGIN_RESPONSES,
+    FORGOT_PWD_SUMMARY, FORGOT_PWD_DESC, FORGOT_PWD_RESPONSES,
+    RESET_PWD_SUMMARY, RESET_PWD_DESC, RESET_PWD_RESPONSES,
+    MFA_SETUP_SUMMARY, MFA_SETUP_DESC, MFA_SETUP_RESPONSES,
+    MFA_VERIFY_SUMMARY, MFA_VERIFY_DESC, MFA_VERIFY_RESPONSES
 )
 
 router = APIRouter(prefix="/auth", tags=["Autenticación y Seguridad"])
@@ -38,25 +40,54 @@ def get_all_careers(db: Session = Depends(get_db)):
     status_code=status.HTTP_201_CREATED,
     summary=REGISTER_SUMMARY,
     description=REGISTER_DESC,
-    responses=COMMON_RESPONSES
+    responses=REGISTER_RESPONSES
 )
 def register(user_data: UserRegisterRequest, db: Session = Depends(get_db)):
-    return services.register_new_student(db, user_data)
+    new_user = services.register_new_student(db, user_data)
+    return {
+        "message": "Usuario registrado exitosamente",
+        "user_email": new_user.email
+    }
 
-@router.post(
-    "/login",
-    summary=LOGIN_SUMMARY,
-    description=LOGIN_DESC,
+@router.post("/login",
+    summary="Iniciar Sesión",
+    tags=["Autenticación y Seguridad"],
     responses=LOGIN_RESPONSES
 )
-def login(login_data: UserLoginRequest, db: Session = Depends(get_db)):
-    return services.authenticate_user(db, login_data)
+def login(login_data: UserLoginRequest, response: Response, db: Session = Depends(get_db)):
+    auth_result = services.authenticate_user(db, login_data)
+    
+    if isinstance(auth_result, JSONResponse):
+        return auth_result
+        
+    # Cookie 1: Access Token (Vive 15 minutos)
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {auth_result['access_token']}",
+        httponly=True, secure=True, samesite="none", max_age=15 * 60 
+    )
+    
+    # Cookie 2: Refresh Token (Vive 7 días)
+    response.set_cookie(
+        key="refresh_token",
+        value=auth_result['refresh_token'],
+        httponly=True, secure=True, samesite="none", max_age=7 * 24 * 60 * 60 
+    )
+    
+    return {"message": "Autenticación exitosa", "user_name": auth_result['user_name']}
+
+@router.post("/logout", summary="Cerrar Sesión", tags=["Autenticación y Seguridad"])
+def logout(response: Response):
+    """Destruye las cookies de sesión (Access y Refresh)."""
+    response.delete_cookie(key="access_token", secure=True, httponly=True, samesite="none")
+    response.delete_cookie(key="refresh_token", secure=True, httponly=True, samesite="none")
+    return {"message": "Sesión cerrada exitosamente."}
 
 @router.post(
     "/forgot-password",
     summary=FORGOT_PWD_SUMMARY,
     description=FORGOT_PWD_DESC,
-    responses=COMMON_RESPONSES
+    responses=FORGOT_PWD_RESPONSES
 )
 def forgot_password(
     request: ForgotPasswordRequest, 
@@ -69,16 +100,39 @@ def forgot_password(
     "/reset-password",
     summary=RESET_PWD_SUMMARY,
     description=RESET_PWD_DESC,
-    responses=COMMON_RESPONSES
+    responses=RESET_PWD_RESPONSES
 )
 def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
     return services.process_reset_password(db, request)
+
+@router.post("/refresh", summary="Renovar Token de Acceso", tags=["Autenticación y Seguridad"])
+def refresh_access_token(response: Response, refresh_token: str | None = Cookie(None)):
+    """Lee la cookie 'refresh_token' y devuelve un nuevo 'access_token' si es válido."""
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No se encontró el Refresh Token.")
+        
+    payload = verify_refresh_token(refresh_token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Refresh Token inválido o expirado.")
+        
+    # Generamos nuevo access token (15 mins)
+    new_token_data = {"sub": payload.get("sub"), "role": payload.get("role")}
+    new_access_token = create_access_token(data=new_token_data)
+    
+    # Actualizamos la cookie del access token
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {new_access_token}",
+        httponly=True, secure=True, samesite="none", max_age=15 * 60 
+    )
+    
+    return {"message": "Token renovado exitosamente"}
 
 @router.post(
     "/mfa/setup",
     summary=MFA_SETUP_SUMMARY,
     description=MFA_SETUP_DESC,
-    responses=COMMON_RESPONSES
+    responses=MFA_SETUP_RESPONSES
 )
 def mfa_setup(user_id: str, db: Session = Depends(get_db)):
     return services.setup_mfa(db, user_id)
@@ -87,7 +141,7 @@ def mfa_setup(user_id: str, db: Session = Depends(get_db)):
     "/mfa/verify",
     summary=MFA_VERIFY_SUMMARY,
     description=MFA_VERIFY_DESC,
-    responses=COMMON_RESPONSES
+    responses=MFA_VERIFY_RESPONSES
 )
 def mfa_verify(user_id: str, code: str, db: Session = Depends(get_db)):
     return services.confirm_mfa(db, user_id, code)

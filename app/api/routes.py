@@ -60,26 +60,24 @@ def login(login_data: UserLoginRequest, response: Response, db: Session = Depend
     if isinstance(auth_result, JSONResponse):
         return auth_result
         
-    # Cookie 1: Access Token (Vive 15 minutos)
-    response.set_cookie(
-        key="access_token",
-        value=f"Bearer {auth_result['access_token']}",
-        httponly=True, secure=True, samesite="none", max_age=15 * 60 
-    )
-    
-    # Cookie 2: Refresh Token (Vive 7 días)
+    # Cookie 1: Refresh Token (Vive 7 días)
     response.set_cookie(
         key="refresh_token",
         value=auth_result['refresh_token'],
         httponly=True, secure=True, samesite="none", max_age=7 * 24 * 60 * 60 
     )
     
-    return {"message": "Autenticación exitosa", "user_name": auth_result['user_name']}
+    # Y le damos el access token al Front en la respuesta (Vive 15 mins)
+    return {
+        "message": "Autenticación exitosa", 
+        "user_name": auth_result['user_name'],
+        "access_token": auth_result['access_token']
+    }
 
 @router.post("/logout", summary="Cerrar Sesión", tags=["Autenticación y Seguridad"])
 def logout(response: Response):
-    """Destruye las cookies de sesión (Access y Refresh)."""
-    response.delete_cookie(key="access_token", secure=True, httponly=True, samesite="none")
+    """Destruye la cookie de sesión del Refresh Token."""
+    # Ya solo borramos la cookie del refresh_token, la del access_token ya no existe
     response.delete_cookie(key="refresh_token", secure=True, httponly=True, samesite="none")
     return {"message": "Sesión cerrada exitosamente."}
 
@@ -106,8 +104,8 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
     return services.process_reset_password(db, request)
 
 @router.post("/refresh", summary="Renovar Token de Acceso", tags=["Autenticación y Seguridad"])
-def refresh_access_token(response: Response, refresh_token: str | None = Cookie(None)):
-    """Lee la cookie 'refresh_token' y devuelve un nuevo 'access_token' si es válido."""
+def refresh_access_token(refresh_token: str | None = Cookie(None)):
+    """Lee la cookie 'refresh_token' y devuelve un nuevo 'access_token' en JSON."""
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No se encontró el Refresh Token.")
         
@@ -119,14 +117,11 @@ def refresh_access_token(response: Response, refresh_token: str | None = Cookie(
     new_token_data = {"sub": payload.get("sub"), "role": payload.get("role")}
     new_access_token = create_access_token(data=new_token_data)
     
-    # Actualizamos la cookie del access token
-    response.set_cookie(
-        key="access_token",
-        value=f"Bearer {new_access_token}",
-        httponly=True, secure=True, samesite="none", max_age=15 * 60 
-    )
-    
-    return {"message": "Token renovado exitosamente"}
+    # y ahora mandamos el token directo en la respuesta para el Frontend
+    return {
+        "message": "Token renovado exitosamente",
+        "access_token": new_access_token
+    }
 
 @router.post(
     "/mfa/setup",
